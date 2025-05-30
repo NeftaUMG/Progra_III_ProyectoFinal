@@ -288,9 +288,10 @@ if __name__ == "__main__":
     else:
         print("\nEntidad con ID 12 NO encontrada.")
 
+    arbol.exportar_csv("entidades_original.csv",";")
     arbol.exportar_png("arbol_entidades")
     arbol.importar_csv("entidades - copia.csv",";")
-    arbol.exportar_csv("entidades.csv",";")
+    arbol.exportar_csv("entidades_modificado.csv",";")
 
     #claves = [10, 20, 5, 6, 12, 30, 7, 17]
     #for clave in claves:

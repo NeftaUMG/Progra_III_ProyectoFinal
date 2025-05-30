@@ -1,0 +1,9 @@
+﻿ID;Nombre;Tipo;Latitud;Longitud;Precio;Calificación;Tiempo Estimado
+5;Eco Lodge;Hospedaje;14;-90.6;80;4.2;
+6;Parque Nacional;Turístico;14.4;-90.8;5;4.7;4
+7;Hostal Maya;Hospedaje;14;-90.52;60;4.1;
+12;Café del Lago;Hospedaje;14.2;-90.55;50;4;
+17;Ruinas Mayas;Turístico;14.6;-91;15;4.9;5
+20;Museo de Arte;Turístico;14.3;-90.7;0;4.8;2
+30;Zoológico;Turístico;14.5;-90.9;10;4.6;3
+30;Café del Lago;Turístico;14;-90.52;1;1;3
