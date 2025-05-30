@@ -32,6 +32,7 @@ class Entidad:
     def printdatos(self):
         print(self.identificador, self.nombre, self.tipo, self.latitud, self.longitud, self.precio, self.calificacion_promedio, self.tiempo_estimado)
 
+    def obtener_etiqueta(self):
         return (
         f"ID: {self.identificador}\\n"
         f"{self.nombre}\\n"
