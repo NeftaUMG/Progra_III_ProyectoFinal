@@ -1,8 +1,77 @@
 import graphviz
 import csv
 import codecs
+import folium
+from math import radians, sin, cos, sqrt, atan2
+
+class Grafo:
+    def __init__(self):
+        self.vertices = {}  # clave: id_entidad, valor: lista de (id_vecino, distancia, tiempo, costo)
+
+    def agregar_vertice(self, entidad):
+        if entidad.identificador not in self.vertices:
+            self.vertices[entidad.identificador] = []
+
+    def agregar_arista(self, origen, destino, distancia_km, tiempo_horas, costo):
+        self.vertices[origen].append((destino, distancia_km, tiempo_horas, costo))
+        self.vertices[destino].append((origen, distancia_km, tiempo_horas, costo))  # Si es bidireccional
+
+def puntuar_ruta(entidades, ruta, presupuesto, tiempo_maximo):
+    tiempo_total = 0
+    costo_total = 0
+    score_total = 0
+
+    for id_entidad in ruta:
+        entidad = entidades[id_entidad]
+        if entidad.tipo == "Turístico":
+            tiempo_total += entidad.tiempo_estimado
+            costo_total += entidad.precio
+            score_total += entidad.calificacion_promedio
+        if tiempo_total > tiempo_maximo or costo_total > presupuesto:
+            return -1  # Ruta inválida
+
+    return score_total  # A mayor puntuación, mejor
+
+def buscar_mejores_rutas(grafo, entidades, origen, presupuesto, tiempo_maximo, max_rutas=5):
+    mejores_rutas = []
+
+    def dfs(ruta_actual, tiempo_acumulado, costo_acumulado, score_acumulado):
+        ultimo = ruta_actual[-1]
+        if len(ruta_actual) > 1:
+            puntuacion = puntuar_ruta(entidades, ruta_actual, presupuesto, tiempo_maximo)
+            if puntuacion > 0:
+                mejores_rutas.append((puntuacion, list(ruta_actual)))
+
+        if len(mejores_rutas) >= max_rutas:
+            return
+
+        for vecino, _, tiempo, costo in grafo.vertices.get(ultimo, []):
+            if vecino in ruta_actual:
+                continue  # No repetir
+            entidad_vecina = entidades[vecino]
+            tiempo_total = tiempo_acumulado + tiempo + entidad_vecina.tiempo_estimado
+            costo_total = costo_acumulado + costo + entidad_vecina.precio
+            if tiempo_total <= tiempo_maximo and costo_total <= presupuesto:
+                ruta_actual.append(vecino)
+                dfs(ruta_actual, tiempo_total, costo_total, score_acumulado + entidad_vecina.calificacion_promedio)
+                ruta_actual.pop()
+
+    dfs([origen], 0, 0, 0)
+    mejores_rutas.sort(reverse=True)
+    return mejores_rutas[:max_rutas]
 
 
+def mostrar_ruta_mapa(entidades, ruta):
+    m = folium.Map(location=[entidades[ruta[0]].latitud, entidades[ruta[0]].longitud], zoom_start=13)
+    for i in range(len(ruta)):
+        entidad = entidades[ruta[i]]
+        folium.Marker([entidad.latitud, entidad.longitud], tooltip=entidad.nombre).add_to(m)
+        if i > 0:
+            origen = entidades[ruta[i - 1]]
+            destino = entidad
+            folium.PolyLine([(origen.latitud, origen.longitud), (destino.latitud, destino.longitud)],
+                            color="blue").add_to(m)
+    m.save("ruta.html")
 
 class Entidad:
     def __init__(self, identificador, nombre, tipo, latitud, longitud,
@@ -261,6 +330,38 @@ class ArbolB:
             print(f"Error al importar CSV: {e}")
 
 
+def calcular_distancia_km(lat1, lon1, lat2, lon2):
+    R = 6371.0  # Radio de la Tierra en kilómetros
+
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return R * c
+
+def obtener_entidades_desde_arbol(arbol_b):
+    entidades = []
+    arbol_b.raiz.recorrer_entidades(entidades)
+    return entidades
+
+def agregar_aristas_automaticamente(arbol_b, grafo):
+    entidades = obtener_entidades_desde_arbol(arbol_b)
+    
+    for i in range(len(entidades)):
+        for j in range(i + 1, len(entidades)):
+            origen = entidades[i]
+            destino = entidades[j]
+
+            distancia = calcular_distancia_km(origen.latitud, origen.longitud, destino.latitud, destino.longitud)
+            tiempo = distancia / 40  # Suponiendo 40 km/h promedio
+            costo = distancia * 2    # Suponiendo $2 por km
+
+            grafo.agregar_arista(origen.identificador, destino.identificador, distancia, tiempo, costo)
+
 if __name__ == "__main__":
     arbol = ArbolB(grado=3)  # Árbol B de orden 3 (máximo 5 claves por nodo)
 
@@ -292,6 +393,81 @@ if __name__ == "__main__":
     arbol.exportar_png("arbol_entidades")
     arbol.importar_csv("entidades - copia.csv",";")
     arbol.exportar_csv("entidades_modificado.csv",";")
+
+
+    grafo = Grafo()
+
+    # Obtener entidades del árbol B para agregarlas como vértices
+    def obtener_entidades_desde_arbol(arbol):
+        lista = []
+        arbol.raiz.recorrer_entidades(lista)
+        return lista
+
+    # Función para agregar aristas de forma automática
+    def agregar_aristas_automaticamente(arbol, grafo):
+        entidades = obtener_entidades_desde_arbol(arbol)
+        for i in range(len(entidades)):
+            for j in range(i + 1, len(entidades)):
+                origen = entidades[i]
+                destino = entidades[j]
+                distancia = calcular_distancia(origen.latitud, origen.longitud, destino.latitud, destino.longitud)
+                tiempo = distancia / 50  # Por ejemplo, 50 km/h
+                costo = 10  # Coste arbitrario o basado en lógica
+                grafo.agregar_arista(origen.identificador, destino.identificador, distancia, tiempo, costo)
+
+    # Función para calcular distancia
+    def calcular_distancia(lat1, lon1, lat2, lon2):
+        R = 6371  # Radio de la Tierra en km
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return R * c
+
+    # Construir el grafo
+    for entidad in obtener_entidades_desde_arbol(arbol):
+        grafo.agregar_vertice(entidad)
+
+    agregar_aristas_automaticamente(arbol, grafo)
+    
+    entidades = {}
+    
+    # Obtener lista de entidades
+    lista_entidades = []
+    arbol.raiz.recorrer_entidades(lista_entidades)
+
+    # Construir el diccionario de entidades
+    entidades = {entidad.identificador: entidad for entidad in lista_entidades}
+
+    # Crear el mapa centrado en la primera entidad (si hay al menos una)
+    if lista_entidades:
+        primera = lista_entidades[0]
+        mapa = folium.Map(location=[primera.latitud, primera.longitud], zoom_start=12)
+
+        # Agregar marcadores
+        for entidad in lista_entidades:
+            folium.Marker(
+                [entidad.latitud, entidad.longitud],
+                popup=f"{entidad.nombre} ({entidad.tipo})",
+                tooltip=f"${entidad.precio} - Calificación: {entidad.calificacion_promedio}",
+                icon=folium.Icon(color="green" if entidad.tipo == "Hospedaje" else "blue")
+            ).add_to(mapa)
+
+        # Dibujar aristas del grafo como líneas
+        for origen_id, conexiones in grafo.vertices.items():
+            origen = entidades[origen_id]
+            for destino_id, _, _, _ in conexiones:
+                destino = entidades[destino_id]
+                folium.PolyLine(
+                    [(origen.latitud, origen.longitud), (destino.latitud, destino.longitud)],
+                    color='gray', weight=2, opacity=0.6
+                ).add_to(mapa)
+
+        # Guardar el mapa
+        mapa.save("mapa_entidades.html")
+        print("Mapa guardado como mapa_entidades.html")
+    else:
+        print("No hay entidades para mostrar en el mapa.")
 
     #claves = [10, 20, 5, 6, 12, 30, 7, 17]
     #for clave in claves:
